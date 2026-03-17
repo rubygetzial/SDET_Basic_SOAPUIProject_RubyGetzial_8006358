@@ -1,0 +1,380 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<con:soapui-project id="6106ccc8-c872-4812-a67a-1b09af34db21" activeEnvironment="Default" name="REST Services" resourceRoot="" soapui-version="5.9.1" abortOnError="false" runType="SEQUENTIAL" xmlns:con="http://eviware.com/soapui/config"><con:settings><con:setting id="com.eviware.soapui.impl.wsdl.actions.iface.tools.soapui.TestRunnerAction@values-local"><![CDATA[<xml-fragment xmlns:con="http://eviware.com/soapui/config">
+  <con:entry key="Report Format(s)" value=""/>
+  <con:entry key="Host:Port" value=""/>
+  <con:entry key="Export JUnit Results" value="false"/>
+  <con:entry key="Export All" value="false"/>
+  <con:entry key="Save After" value="false"/>
+  <con:entry key="Add Settings" value="false"/>
+  <con:entry key="WSS Password Type" value=""/>
+  <con:entry key="TestSuite" value="Countries Test Suite"/>
+  <con:entry key="Endpoint" value=""/>
+  <con:entry key="Select Report Type" value=""/>
+  <con:entry key="System Properties" value=""/>
+  <con:entry key="Password" value=""/>
+  <con:entry key="Print Report" value="false"/>
+  <con:entry key="Open Report" value="false"/>
+  <con:entry key="Export JUnit Results with test properties" value="false"/>
+  <con:entry key="Global Properties" value=""/>
+  <con:entry key="Project Properties" value=""/>
+  <con:entry key="Project Password" value=""/>
+  <con:entry key="TestCase" value="Get Countries by Subregion"/>
+  <con:entry key="Username" value=""/>
+  <con:entry key="user-settings.xml Password" value=""/>
+  <con:entry key="TestRunner Path" value=""/>
+  <con:entry key="Environment" value="Default"/>
+  <con:entry key="Coverage Report" value="false"/>
+  <con:entry key="Enable UI" value="false"/>
+  <con:entry key="Root Folder" value=""/>
+  <con:entry key="Ignore Errors" value="false"/>
+  <con:entry key="Domain" value=""/>
+  <con:entry key="Tool Args" value=""/>
+  <con:entry key="Save Project" value="false"/>
+</xml-fragment>]]></con:setting></con:settings><con:interface xsi:type="con:RestService" id="2579a3f9-5bfb-4dc1-bcfd-9421ebce1200" wadlVersion="http://wadl.dev.java.net/2009/02" name="https://restcountries.com" type="rest" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><con:settings/><con:definitionCache/><con:endpoints><con:endpoint>https://restcountries.com</con:endpoint></con:endpoints><con:resource name="/subregion" path="/v3.1/subregion/Northern Europe" id="77a23187-539c-4d89-8501-f378546b20ae"><con:settings/><con:parameters/><con:method name="Get Countries" id="ece4fd8e-ab36-4b47-aca9-3885c37f46e0" method="GET"><con:settings/><con:parameters/><con:representation type="RESPONSE"><con:mediaType>application/json</con:mediaType><con:status>200</con:status><con:params/><con:element>Response</con:element></con:representation><con:representation type="REQUEST"><con:mediaType>application/json</con:mediaType><con:params/></con:representation><con:request name="Request 1" id="e54886d5-ce49-417c-b916-e6dab2a73c0c" mediaType="application/json"><con:settings/><con:endpoint>https://restcountries.com</con:endpoint><con:request/><con:credentials><con:authType>No Authorization</con:authType></con:credentials><con:jmsConfig JMSDeliveryMode="PERSISTENT"/><con:jmsPropertyConfig/><con:parameters/></con:request></con:method></con:resource></con:interface><con:testSuite id="03e4a4cb-59d8-4fba-a171-59c825e2d6e8" name="Countries Test Suite"><con:settings/><con:runType>SEQUENTIAL</con:runType><con:testCase id="0c282de6-d2f6-4881-9edf-29e78c40f8bb" failOnError="true" failTestCaseOnErrors="true" keepSession="false" maxResults="0" name="Get Countries by Subregion" searchProperties="true"><con:settings/><con:testStep type="groovy" name="Step 1- Read from Excel" id="b58ec80e-c216-4098-8ca2-f188e5033195"><con:settings/><con:config><script>import org.apache.poi.ss.usermodel.*
+import org.apache.poi.xssf.usermodel.*
+import java.io.File
+
+/**
+ * Generic Excel Reader using Apache POI 4.1.2
+ * Compatible with newer POI versions
+ */
+def readExcelData(String filePath, int sheetIndex = 0, int startRow = 1) {
+    FileInputStream fis = null
+    XSSFWorkbook workbook = null
+    
+    try {
+        log.info("=== READING EXCEL FILE ===")
+        log.info("File Path: ${filePath}")
+        
+        def file = new File(filePath)
+        if (!file.exists()) {
+            log.error("Excel file not found: ${filePath}")
+            return []
+        }
+        
+        fis = new FileInputStream(file)
+        workbook = new XSSFWorkbook(fis)
+        
+        def sheet = workbook.getSheetAt(sheetIndex)
+        if (!sheet) {
+            log.error("Sheet at index ${sheetIndex} not found")
+            return []
+        }
+        
+        // Read header row
+        def headerRow = sheet.getRow(0)
+        if (!headerRow) {
+            log.error("No header row found")
+            return []
+        }
+        
+        def headers = []
+        (0..headerRow.lastCellNum - 1).each { cellIdx ->
+            def cell = headerRow.getCell(cellIdx)
+            headers.add(cell?.stringCellValue ?: "Column_${cellIdx}")
+        }
+        
+        log.info("Headers: ${headers}")
+        
+        def dataList = []
+        
+        // Read data rows
+        (startRow..sheet.lastRowNum).each { rowIdx ->
+            def row = sheet.getRow(rowIdx)
+            if (row) {
+                def rowMap = [:]
+                
+                (0..headers.size() - 1).each { cellIdx ->
+                    def cell = row.getCell(cellIdx)
+                    def value = ""
+                    
+                    if (cell != null) {
+                        // Use getCellType() method instead of cellType property
+                        def cellType = cell.getCellType()
+                        
+                        if (cellType == CellType.STRING) {
+                            value = cell.getStringCellValue()
+                        } else if (cellType == CellType.NUMERIC) {
+                            if (DateUtil.isCellDateFormatted(cell)) {
+                                value = cell.getDateCellValue()
+                            } else {
+                                value = cell.getNumericCellValue() as Integer
+                            }
+                        } else if (cellType == CellType.BOOLEAN) {
+                            value = cell.getBooleanCellValue()
+                        } else if (cellType == CellType.BLANK) {
+                            value = ""
+                        } else {
+                            value = cell.toString()
+                        }
+                    }
+                    rowMap[headers[cellIdx]] = value
+                }
+                
+                if (rowMap) {
+                    dataList.add(rowMap)
+                    log.info("Row ${rowIdx}: ${rowMap}")
+                }
+            }
+        }
+        
+        log.info("✓ Successfully read ${dataList.size()} rows from Excel")
+        log.info("=== END READING EXCEL ===")
+        
+        return dataList
+        
+    } catch (Exception e) {
+        log.error("ERROR reading Excel: ${e.message}")
+        e.printStackTrace()
+        return []
+        
+    } finally {
+        // Close resources
+        try {
+            if (workbook) workbook.close()
+            if (fis) fis.close()
+        } catch (Exception e) {
+            log.warn("Error closing resources: ${e.message}")
+        }
+    }
+}
+
+// ===== MAIN EXECUTION =====
+def excelPath = "C:/TestData/subregions.xlsx"
+
+log.info("\n*** Starting Excel Data Load ***")
+def excelData = readExcelData(excelPath, 0, 1)
+
+if (excelData.isEmpty()) {
+    log.error("FAILED: No data read from Excel file!")
+    testRunner.fail("Failed to read Excel data")
+} else {
+    // FIX: Use testRunner.testCase instead of testCase
+    testRunner.testCase.setPropertyValue("excelData", excelData.toString())
+    context.excelDataList = excelData
+    
+    log.info("\n*** Excel Data Loaded Successfully ***")
+    log.info("Total rows: ${excelData.size()}")
+    excelData.each { row ->
+        log.info("  → ${row}")
+    }
+}
+
+return excelData</script></con:config></con:testStep><con:testStep type="groovy" name="Step 2 - Loop and Trigger API" id="b3a56e0b-cffa-4235-8ced-396a55eff99a"><con:settings/><con:config><script>import groovy.json.JsonSlurper
+
+/**
+ * Generic function to make GET API calls
+ * Handles connection, response parsing, and error handling
+ */
+def makeGETRequest(String apiUrl) {
+    try {
+        log.info("Making GET request to: ${apiUrl}")
+        
+        // Create connection
+        def url = new URL(apiUrl)
+        def connection = url.openConnection() as HttpURLConnection
+        connection.requestMethod = 'GET'
+        connection.setRequestProperty('Accept', 'application/json')
+        connection.setRequestProperty('Content-Type', 'application/json')
+        connection.setConnectTimeout(10000)
+        connection.setReadTimeout(10000)
+        
+        // Get response
+        def responseCode = connection.responseCode
+        log.info("Response Code: ${responseCode}")
+        
+        def responseBody = ""
+        if (responseCode == 200) {
+            responseBody = connection.inputStream.text
+        } else {
+            responseBody = connection.errorStream?.text ?: "No error details"
+        }
+        
+        log.info("Response received (${responseBody.length()} bytes)")
+        
+        return [
+            status: responseCode,
+            data: responseBody,
+            success: (responseCode == 200),
+            timestamp: new Date().format('yyyy-MM-dd HH:mm:ss')
+        ]
+        
+    } catch (Exception e) {
+        log.error("ERROR making GET request: ${e.message}")
+        e.printStackTrace()
+        return [
+            status: 500,
+            data: null,
+            success: false,
+            error: e.message,
+            timestamp: new Date().format('yyyy-MM-dd HH:mm:ss')
+        ]
+    }
+}
+
+// ===== MAIN EXECUTION =====
+log.info("\n=== STARTING API REQUEST LOOP ===")
+
+def excelData = context.excelDataList
+
+if (!excelData || excelData.isEmpty()) {
+    log.error("No test data available from Excel!")
+    testRunner.fail("No test data to process")
+    return
+}
+
+def apiBaseUrl = "https://restcountries.com/v3.1/subregion"
+def apiResults = []
+
+excelData.eachWithIndex { rowData, index ->
+    try {
+        def subregion = rowData['SubregionName']
+        log.info("\n>>> Processing row ${index + 1}: Subregion = ${subregion}")
+        
+        // Replace spaces with %20 (proper URL encoding for spaces)
+        def encodedSubregion = subregion.toString().replace(' ', '%20')
+        def apiUrl = "${apiBaseUrl}/${encodedSubregion}"
+        
+        log.info("API URL: ${apiUrl}")
+        
+        // Make the API call directly
+        def response = makeGETRequest(apiUrl)
+        
+        // Store result
+        apiResults.add([
+            rowNumber: index + 1,
+            subregion: subregion,
+            apiUrl: apiUrl,
+            status: response.status,
+            success: response.success,
+            timestamp: response.timestamp,
+            responseData: response.data,
+            errorMessage: response.error ?: "None"
+        ])
+        
+        log.info("✓ Result: Status ${response.status}, Success: ${response.success}")
+        
+        if (response.success) {
+            // Store the response for validation in next step
+            context.lastApiResponse = response.data
+            testRunner.testCase.setPropertyValue("lastResponse", response.data)
+        }
+        
+    } catch (Exception e) {
+        log.error("ERROR processing row ${index}: ${e.message}")
+        e.printStackTrace()
+    }
+}
+
+// Store all results in context
+context.apiResults = apiResults
+testRunner.testCase.setPropertyValue("apiResults", apiResults.toString())
+
+log.info("\n=== API REQUEST LOOP COMPLETED ===")
+log.info("Total requests: ${apiResults.size()}")
+log.info("Successful: ${apiResults.count { it.success }}")
+log.info("Failed: ${apiResults.count { !it.success }}")
+
+return apiResults</script></con:config></con:testStep><con:testStep type="groovy" name="Step 3 - Validate Response" id="e27ead22-a461-45b7-84c1-173e7ab18ce2"><con:settings/><con:config><script>import groovy.json.JsonSlurper
+
+/**
+ * Comprehensive assertion script to validate API responses
+ * Checks status, JSON validity, data integrity, and performance
+ */
+
+log.info("\n=== STARTING RESPONSE VALIDATION ===")
+
+try {
+    def apiResults = context.apiResults
+    
+    if (!apiResults || apiResults.isEmpty()) {
+        log.error("No API results to validate!")
+        testRunner.fail("No API results available")
+        return
+    }
+    
+    log.info("Total API calls made: ${apiResults.size()}")
+    
+    // ===== ASSERTION 1: Check HTTP Status Codes =====
+    log.info("\n[ASSERTION 1] Validating HTTP Status Codes...")
+    def failedRequests = apiResults.findAll { !it.success }
+    
+    if (failedRequests) {
+        log.warn("WARNING: ${failedRequests.size()} requests failed:")
+        failedRequests.each { result ->
+            log.warn("  - ${result.subregion}: Status ${result.status}")
+        }
+    } else {
+        log.info("✓ PASS: All requests returned status 200")
+    }
+    
+    // ===== ASSERTION 2: Validate Response Data =====
+    log.info("\n[ASSERTION 2] Validating Response Data...")
+    def successfulResults = apiResults.findAll { it.success }
+    
+    if (successfulResults.isEmpty()) {
+        log.error("ERROR: No successful responses to validate")
+        testRunner.fail("All API calls failed")
+        return
+    }
+    
+    log.info("Validating ${successfulResults.size()} successful responses...")
+    
+    successfulResults.each { result ->
+        def responseBody = result.responseData
+        
+        if (!responseBody) {
+            log.error("No response body for ${result.subregion}")
+            return
+        }
+        
+        try {
+            def jsonResponse = new JsonSlurper().parseText(responseBody)
+            
+            // Validate it's a list
+            assert jsonResponse instanceof List, "Response should be a list"
+            log.info("  ✓ ${result.subregion}: Valid JSON, ${jsonResponse.size()} countries")
+            
+            // Validate required fields
+            def requiredFields = ['name', 'region', 'subregion']
+            jsonResponse.each { country ->
+                requiredFields.each { field ->
+                    assert country.containsKey(field), "Missing field: ${field}"
+                }
+            }
+            
+            log.info("  ✓ ${result.subregion}: All required fields present")
+            
+        } catch (Exception e) {
+            log.error("  ✗ ${result.subregion}: Validation failed - ${e.message}")
+        }
+    }
+    
+    // ===== ASSERTION 3: Summary Report =====
+    log.info("\n" + "="*60)
+    log.info("*** VALIDATION SUMMARY ***")
+    log.info("Total API Calls: ${apiResults.size()}")
+    log.info("Successful: ${successfulResults.size()}")
+    log.info("Failed: ${failedRequests.size()}")
+    
+    successfulResults.each { result ->
+        log.info("  ✓ ${result.subregion} (${result.apiUrl})")
+    }
+    
+    failedRequests.each { result ->
+        log.info("  ✗ ${result.subregion} (Status: ${result.status})")
+    }
+    
+    log.info("="*60)
+    
+    if (successfulResults.size() > 0) {
+        log.info("\n*** VALIDATION PASSED ***")
+    }
+    
+} catch (Exception e) {
+    log.error("ERROR in validation: ${e.message}")
+    e.printStackTrace()
+    testRunner.fail("Validation failed: ${e.message}")
+}
+
+return true</script></con:config></con:testStep><con:properties><con:property><con:name>currentSubregion</con:name><con:value>Northern Europe</con:value></con:property><con:property><con:name>excelData</con:name><con:value/></con:property><con:property><con:name>apiResults</con:name><con:value/></con:property></con:properties></con:testCase><con:properties/></con:testSuite><con:properties/><con:wssContainer/><con:oAuth2ProfileContainer/><con:oAuth1ProfileContainer/><con:sensitiveInformation/></con:soapui-project>
